@@ -1,0 +1,14 @@
+DROP DATABASE `apparat`;
+CREATE DATABASE `apparat`;
+USE `apparat`;
+
+CREATE TABLE `users` (
+    `uid` INT(10) NOT NULL AUTO_INCREMENT,
+    `username` VARCHAR(64) NULL DEFAULT NULL,
+    `password` VARCHAR(64) NULL DEFAULT NULL,
+    `realname` VARCHAR(64) NULL DEFAULT NULL,
+    `email` VARCHAR(64) NULL DEFAULT NULL,
+    `created` DATETIME NULL DEFAULT NULL,
+    PRIMARY KEY (`uid`),
+    UNIQUE (`username`)
+) ENGINE=InnoDB DEFAULT CHARSET=UTF8;
