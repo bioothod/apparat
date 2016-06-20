@@ -34,26 +34,20 @@ type Mailbox struct {
 	Realname		string		`json:"realname"`
 	Email			string		`json:"email"`
 	Created			time.Time	`json:"-"`
-	ID			int64		`json:"-"`
 }
 
 func (mbox *Mailbox) String() string {
-	return fmt.Sprintf("username: %s, realname: %s, email: %s, created: '%s', uid: %d",
-		mbox.Username, mbox.Realname, mbox.Email, mbox.Created.String(), mbox.ID)
+	return fmt.Sprintf("username: %s, realname: %s, email: %s, created: '%s'",
+		mbox.Username, mbox.Realname, mbox.Email, mbox.Created.String())
 }
 
 func (ctl *AuthCtl) NewUser(mbox *Mailbox) error {
 	mbox.Created = time.Now()
 
-	res, err := ctl.db.Exec("INSERT INTO users SET username=?,password=?,realname=?,email=?,created=?",
+	_, err := ctl.db.Exec("INSERT INTO users SET username=?,password=?,realname=?,email=?,created=?",
 		mbox.Username, mbox.Password, mbox.Realname, mbox.Email, mbox.Created)
 	if err != nil {
 		return fmt.Errorf("could not insert new user: %s: %v", mbox.String(), err)
-	}
-
-	mbox.ID, err = res.LastInsertId()
-	if err != nil {
-		return fmt.Errorf("could not get ID for user: %s: %v", mbox.String(), err)
 	}
 
 	return nil
@@ -69,7 +63,7 @@ func (ctl *AuthCtl) GetUser(mbox *Mailbox) error {
 	for rows.Next() {
 		var username, password string
 
-		err = rows.Scan(&mbox.ID, &username, &password, &mbox.Realname, &mbox.Email, &mbox.Created)
+		err = rows.Scan(&username, &password, &mbox.Realname, &mbox.Email, &mbox.Created)
 		if err != nil {
 			return fmt.Errorf("database schema mismatch: %v", err)
 		}
@@ -90,8 +84,8 @@ func (ctl *AuthCtl) GetUser(mbox *Mailbox) error {
 }
 
 func (ctl *AuthCtl) UpdateUser(mbox *Mailbox) error {
-	_, err := ctl.db.Exec("UPDATE users SET password=?,realname=?,email=? WHERE uid=?",
-		mbox.Password, mbox.Realname, mbox.Email, mbox.ID)
+	_, err := ctl.db.Exec("UPDATE users SET password=?,realname=?,email=? WHERE username=?",
+		mbox.Password, mbox.Realname, mbox.Email, mbox.Username)
 	if err != nil {
 		return fmt.Errorf("could not update user: %s: %v", mbox.String(), err)
 	}
