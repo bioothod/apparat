@@ -43,11 +43,15 @@ func CheckAuthCookie(r *http.Request) (*AuthCookie, error) {
 	var ac = &AuthCookie{}
 	var ok bool
 	if ac, ok = val.(*AuthCookie); !ok {
-		return nil, fmt.Errorf("invalid cookie format")
+		return nil, fmt.Errorf("invalid cookie format, could not transform")
 	}
 
 	if time.Now().After(ac.ExpiredAt) {
 		return nil, fmt.Errorf("expired cookie")
+	}
+
+	if len(ac.Username) == 0 {
+		return nil, fmt.Errorf("invalid cookie format")
 	}
 
 	return ac, nil
