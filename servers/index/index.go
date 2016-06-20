@@ -4,7 +4,6 @@ import (
 	"flag"
 	"fmt"
 	"github.com/bioothod/apparat/middleware"
-	"github.com/bioothod/apparat/services/auth"
 	"github.com/bioothod/apparat/services/index"
 	"github.com/gin-gonic/gin"
 	"log"
@@ -91,8 +90,8 @@ func main() {
 		"	user:password@tcp(localhost:5555)/dbname?charset=utf8\n" +
 		"	user:password@/dbname\n" +
 		"	user:password@tcp([de:ad:be:ef::ca:fe]:80)/dbname")
-	cookie_auth := flag.String("cookie-auth", "", "key to authenticate cookies")
-	cookie_encrypt := flag.String("cookie-encrypt", "", "key to encrypt cookies")
+	auth := flag.String("auth", "", "authentication check service (full-featured URL like http://auth.example.com:1234/check)")
+
 
 	flag.Parse()
 	if *addr == "" {
@@ -101,8 +100,8 @@ func main() {
 	if *dbparams == "" {
 		log.Fatalf("You must provide mysql auth database parameters")
 	}
-	if *cookie_auth == "" {
-		log.Fatalf("you must provide auth key")
+	if *auth == "" {
+		log.Fatalf("You must provide authentication service URL")
 	}
 
 	var err error
@@ -111,16 +110,6 @@ func main() {
 		log.Fatalf("could not connect to MySQL database '%s': %v", *dbparams, err)
 	}
 	defer idxCtl.Close()
-
-	var cookie_keys [][]byte
-	cookie_keys = make([][]byte, 0)
-	cookie_keys = append(cookie_keys, []byte(*cookie_auth))
-
-	if *cookie_encrypt != "" {
-		cookie_keys = append(cookie_keys, []byte(*cookie_encrypt))
-	}
-
-	auth.InitCookieStore(cookie_keys, "/")
 
 	r := gin.New()
 	r.Use(gin.Logger())
@@ -142,7 +131,7 @@ func main() {
 		})
 	})
 
-	authorized := r.Group("/", middleware.AuthRequired())
+	authorized := r.Group("/", middleware.AuthRequired(*auth))
 	authorized.POST("/index", index_tags)
 	authorized.POST("/list", list_tags)
 
