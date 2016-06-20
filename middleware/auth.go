@@ -8,7 +8,7 @@ import (
 
 func AuthRequired() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		_, err := auth.CheckAuthCookie(c.Request)
+		ac, err := auth.CheckAuthCookie(c.Request)
 		if err != nil {
 			c.JSON(http.StatusForbidden, gin.H {
 				"error": err,
@@ -16,6 +16,7 @@ func AuthRequired() gin.HandlerFunc {
 			return
 		}
 
+		c.Set("username", ac.Username)
 		c.Next()
 	}
 }
