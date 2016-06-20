@@ -8,6 +8,8 @@ import (
 	"time"
 )
 
+const CookieName string = "apparat"
+
 var cookieStore *sessions.CookieStore
 var cookieDuration int
 var cookiePath string
@@ -34,7 +36,7 @@ func NewAuthCookie(username string) *AuthCookie {
 }
 
 func CheckAuthCookie(r *http.Request) (*AuthCookie, error) {
-	session, err := cookieStore.Get(r, "apparat")
+	session, err := cookieStore.Get(r, CookieName)
 	if err != nil {
 		return nil, fmt.Errorf("could not read cookie: %v", err)
 	}
@@ -58,7 +60,7 @@ func CheckAuthCookie(r *http.Request) (*AuthCookie, error) {
 }
 
 func SetAuthCookie(r *http.Request, w http.ResponseWriter, ac *AuthCookie) error {
-	session, err := cookieStore.Get(r, "apparat")
+	session, err := cookieStore.Get(r, CookieName)
 	if err != nil {
 		return fmt.Errorf("could not read cookie: %v", err)
 	}

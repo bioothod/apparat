@@ -133,6 +133,22 @@ func user_update(c *gin.Context) {
 	})
 }
 
+func check_cookie(c *gin.Context) {
+	ac, err := auth.CheckAuthCookie(c.Request)
+	if err != nil {
+		c.JSON(http.StatusForbidden, gin.H {
+			"operation": "check",
+			"error": fmt.Sprintf("cookie check has failed: %v", err),
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H {
+		"operation": "check",
+		"auth": ac,
+	})
+}
+
 func main() {
 	addr := flag.String("addr", "", "address to listen auth server at")
 	dbparams := flag.String("db", "", "mysql database parameters:\n" +
@@ -194,8 +210,9 @@ func main() {
 
 	r.POST("/login", user_login)
 	r.POST("/signup", user_signup)
+	r.POST("/check", check_cookie)
 
-	authorized := r.Group("/", middleware.AuthRequired())
+	authorized := r.Group("/", middleware.AuthRequired(*addr))
 	authorized.POST("/update", user_update)
 
 	http.ListenAndServe(*addr, r)
