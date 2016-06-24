@@ -61,7 +61,7 @@ func CheckAuthCookie(r *http.Request) (*AuthCookie, error) {
 
 func SetAuthCookie(r *http.Request, w http.ResponseWriter, ac *AuthCookie) error {
 	session, err := cookieStore.Get(r, CookieName)
-	if err != nil {
+	if err != nil && session == nil {
 		return fmt.Errorf("could not read cookie: %v", err)
 	}
 
