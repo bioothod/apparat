@@ -56,6 +56,7 @@ func main() {
 	addr := flag.String("addr", "", "address to listen auth server at")
 	auth_addr := flag.String("auth-addr", "", "address where auth server lives")
 	index_addr := flag.String("index-addr", "", "address where index server lives")
+	io_addr := flag.String("io-addr", "", "address where IO server lives")
 	static := flag.String("static", "", "directory for static content")
 
 	flag.Parse()
@@ -67,6 +68,9 @@ func main() {
 	}
 	if *index_addr == "" {
 		log.Fatalf("You must provide index server addr")
+	}
+	if *io_addr == "" {
+		log.Fatalf("You must provide IO server addr")
 	}
 
 
@@ -98,6 +102,16 @@ func main() {
 	r.POST("/list", func (c *gin.Context) {
 		index_forwarder.forward(c)
 	})
+
+	io_forwarder := &Forwarder {
+		addr:	*io_addr,
+	}
+	r.POST("/upload/:key", func (c *gin.Context) {
+		io_forwarder.forward(c)
+	})
+	//r.GET("/get/:bucket/:key", func (c *gin.Context) {
+	//	io_forwarder.forward(c)
+	//})
 
 	if *static == "" {
 		log.Printf("[WARN] no static content directory provided, static files handling will be disabled")
