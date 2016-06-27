@@ -47,6 +47,32 @@ func index_tags(c *gin.Context) {
 	})
 }
 
+func list_meta_tags(c *gin.Context) {
+	username := c.MustGet("username").(string)
+	idx, err := index.NewIndexer(username, idxCtl)
+	if err != nil {
+		c.JSON(http.StatusServiceUnavailable, gin.H {
+			"operation": "list_meta",
+			"error": fmt.Sprintf("could not create new indexer for user '%s', error: %v", username, err),
+		})
+		return
+	}
+
+	reply, err := idx.ListMeta()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H {
+			"operation": "list_meta",
+			"error": fmt.Sprintf("could not list meta tags from user '%s', error: %v", username, err),
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H {
+		"operation": "list_meta",
+		"reply": reply,
+	})
+}
+
 func list_tags(c *gin.Context) {
 	username := c.MustGet("username").(string)
 	idx, err := index.NewIndexer(username, idxCtl)
@@ -134,6 +160,7 @@ func main() {
 	authorized := r.Group("/", middleware.AuthRequired(*auth))
 	authorized.POST("/index", index_tags)
 	authorized.POST("/list", list_tags)
+	authorized.POST("/list_meta", list_meta_tags)
 
 	http.ListenAndServe(*addr, r)
 }
