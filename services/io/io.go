@@ -67,13 +67,13 @@ func (io *IOCtl) FindBucket(name string) (*ebucket.BucketMeta, error) {
 }
 
 type Reply struct {
-	Bucket		string
-	Key		string
-	Size		uint64
+	Bucket		string			`json:"bucket"`
+	Key		string			`json:"key"`
+	Size		uint64			`json:"size"`
 
-	MetaBucket	string
-	MetaKey		string
-	MetaSize	uint64
+	MetaBucket	string			`json:"meta_bucket"`
+	MetaKey		string			`json:"meta_key"`
+	MetaSize	uint64			`json:"meta_size"`
 }
 
 type NullxInfo struct {
