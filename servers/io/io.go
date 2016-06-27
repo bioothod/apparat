@@ -1,11 +1,13 @@
 package main
 
 import (
+	"encoding/base64"
 	"flag"
 	"fmt"
 	"github.com/bioothod/apparat/middleware"
 	"github.com/bioothod/apparat/services/io"
 	"github.com/gin-gonic/gin"
+	"golang.org/x/crypto/sha3"
 	"log"
 	"net/http"
 	"strconv"
@@ -18,7 +20,11 @@ type modifier_func func(string) string
 
 func key_modifier(username string) modifier_func {
 	return func(key string) string {
-		return username + "." + key
+		tmp := fmt.Sprintf("%s\x00%s", username, key)
+		res := make([]byte, 64)
+
+		sha3.ShakeSum256(res, []byte(tmp))
+		return base64.URLEncoding.EncodeToString(res)
 	}
 }
 
