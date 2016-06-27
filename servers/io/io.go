@@ -36,7 +36,7 @@ func upload_handler(c *gin.Context) {
 	if err != nil {
 		c.JSON(http.StatusServiceUnavailable, gin.H {
 			"operation": "io",
-			"error": err.Error(),
+			"error": fmt.Sprintf("upload failed: %v", err),
 		})
 		return
 	}
