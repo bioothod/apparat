@@ -272,14 +272,20 @@ func main() {
 	r.POST("/upload/:key", func (c *gin.Context) {
 		io_forwarder.forward(c)
 	})
-	//r.GET("/get/:bucket/:key", func (c *gin.Context) {
-	//	io_forwarder.forward(c)
-	//})
+	r.GET("/get/:bucket/:key", func (c *gin.Context) {
+		io_forwarder.Forwarder.forward(c)
+	})
+	r.GET("/get_key/:bucket/:key", func (c *gin.Context) {
+		io_forwarder.Forwarder.forward(c)
+	})
 
 	if *static == "" {
 		log.Printf("[WARN] no static content directory provided, static files handling will be disabled")
 	} else {
-		r.Static("/", *static)
+		r.Static("/index.html", *static)
+		r.Static("/scripts", *static)
+		r.Static("/css", *static)
+		r.Static("/build", *static)
 	}
 
 
