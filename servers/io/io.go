@@ -28,6 +28,37 @@ func key_modifier(username string) modifier_func {
 	}
 }
 
+func get_handler(c *gin.Context) {
+	username := c.MustGet("username").(string)
+	bucket := c.Param("bucket")
+	key := c.Param("key")
+
+	// data will be streamed to client
+	status, err := ioCtl.Get(c.Request, c.Writer, bucket, key, key_modifier(username))
+	if err != nil {
+		c.JSON(status, gin.H {
+			"operation": "get",
+			"error": fmt.Sprintf("get failed: %v", err),
+		})
+		return
+	}
+}
+
+func get_key_handler(c *gin.Context) {
+	bucket := c.Param("bucket")
+	key := c.Param("key")
+
+	// data will be streamed to client
+	status, err := ioCtl.GetKey(c.Request, c.Writer, bucket, key)
+	if err != nil {
+		c.JSON(status, gin.H {
+			"operation": "get_key",
+			"error": fmt.Sprintf("get_key failed: %v", err),
+		})
+		return
+	}
+}
+
 func upload_handler(c *gin.Context) {
 	username := c.MustGet("username").(string)
 	key := c.Param("key")
@@ -35,14 +66,14 @@ func upload_handler(c *gin.Context) {
 	reply, err := ioCtl.Upload(c.Request, key, key_modifier(username))
 	if err != nil {
 		c.JSON(http.StatusServiceUnavailable, gin.H {
-			"operation": "io",
+			"operation": "upload",
 			"error": fmt.Sprintf("upload failed: %v", err),
 		})
 		return
 	}
 
 	c.JSON(http.StatusOK, gin.H {
-		"operation": "io",
+		"operation": "upload",
 		"reply": reply,
 	})
 }
@@ -131,6 +162,8 @@ func main() {
 
 	authorized := r.Group("/", middleware.AuthRequired(*auth))
 	authorized.POST("/upload/:key", upload_handler)
+	authorized.GET("/get/:bucket/:key", get_handler)
+	authorized.GET("/get_key/:bucket/:key", get_key_handler)
 
 	http.ListenAndServe(*addr, r)
 }

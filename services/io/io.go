@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"github.com/bioothod/elliptics-go/elliptics"
 	"github.com/bioothod/ebucket/bindings/go"
+	"github.com/golang/glog"
 	goio "io"
 	"io/ioutil"
 	"math"
@@ -283,4 +284,56 @@ func (io *IOCtl) Upload(req *http.Request, key string, modifier func(x string) s
 	}
 
 	return replies, nil
+}
+
+func (io *IOCtl) GetKey(req *http.Request, w http.ResponseWriter, bucket, key string) (int, error) {
+	session, err := elliptics.NewSession(io.node)
+	if err != nil {
+		return http.StatusServiceUnavailable,
+			fmt.Errorf("could not create new session, bucket: %s, key: %s, error: %v", bucket, key, err)
+	}
+	defer session.Delete()
+
+	meta, err := io.FindBucket(bucket)
+	if err != nil {
+		return http.StatusServiceUnavailable,
+			fmt.Errorf("could not find bucket: %s, key: %s, error: %v", bucket, key, err)
+	}
+	session.SetGroups(meta.Groups)
+	session.SetNamespace(meta.Name)
+
+	reader, err := elliptics.NewReadSeeker(session, key)
+	if err != nil {
+		status := http.StatusServiceUnavailable
+		if e, ok := err.(*elliptics.DnetError); ok {
+			if e.Code == -2 {
+				status = http.StatusNotFound
+			}
+		}
+		return status, fmt.Errorf("could not create new writer, bucket: %s, key: %s, groups: %v, error: %v",
+			meta.Name, key, meta.Groups, err)
+	}
+	defer reader.Free()
+
+	var copied int64
+	copied, err = goio.Copy(w, reader)
+	if err != nil {
+		return http.StatusServiceUnavailable,
+			fmt.Errorf("could not copy data, bucket: %s, key: %s, groups: %v, copied: %d, error: %v",
+				meta.Name, key, meta.Groups, copied, err)
+	}
+
+	glog.Infof("GetKey: bucket: %s, key: %s, groups: %v, copied: %d", bucket, key, meta.Groups, copied)
+	return http.StatusOK, nil
+}
+
+func (io *IOCtl) Get(req *http.Request, w http.ResponseWriter, bucket, key string, modifier func(x string) string) (int, error) {
+	mkey := modifier(key)
+	status, err := io.GetKey(req, w, bucket, mkey)
+	if err != nil {
+		glog.Errorf("bucket: %s, key: %s -> %s, error: %v", bucket, key, mkey, err)
+	} else {
+		glog.Infof("bucket: %s, key: %s -> %s", bucket, key, mkey)
+	}
+	return status, err
 }
