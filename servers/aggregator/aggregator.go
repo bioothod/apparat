@@ -9,14 +9,30 @@ import (
 	"github.com/bioothod/apparat/services/auth"
 	"github.com/bioothod/apparat/services/index"
 	sio "github.com/bioothod/apparat/services/io"
+	"github.com/gin-gonic/contrib/static"
 	"github.com/gin-gonic/gin"
 	"io"
 	"io/ioutil"
 	"log"
 	"net/http"
-	"time"
+	"os"
 	"strings"
+	"time"
 )
+
+func static_index_handler(root string) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		file, err := os.Open(root + "/index.html")
+		if err != nil {
+			c.Status(http.StatusBadRequest)
+			return
+		}
+		defer file.Close()
+
+		var t time.Time
+		http.ServeContent(c.Writer, c.Request, "index.html", t, file)
+	}
+}
 
 type Forwarder struct {
 	addr		string
@@ -214,7 +230,7 @@ func main() {
 	auth_addr := flag.String("auth-addr", "", "address where auth server lives")
 	index_addr := flag.String("index-addr", "", "address where index server lives")
 	io_addr := flag.String("io-addr", "", "address where IO server lives")
-	static := flag.String("static", "", "directory for static content")
+	static_dir := flag.String("static", "", "directory for static content")
 
 	flag.Parse()
 	if *addr == "" {
@@ -235,6 +251,18 @@ func main() {
 	r.Use(gin.Logger())
 	r.Use(gin.Recovery())
 	r.Use(middleware.CORS())
+
+
+	if *static_dir == "" {
+		log.Printf("[WARN] no static content directory provided, static files handling will be disabled")
+	} else {
+		// this is needed since otherwise ServeFile() redirects /index.html to / and there is no wildcard / handler
+		// / wildcard handler can not be added, since it will clash with /get and other GET handlers
+		// instead we have this static middleware which checks everything against static root and handles
+		// files via http.FileServer.ServerHTTP() which ends up calling http.ServeFile() with its weird redirect
+		r.GET("/index.html", static_index_handler(*static_dir))
+		r.Use(static.Serve("/", static.LocalFile(*static_dir, false)))
+	}
 
 	auth_forwarder := &Forwarder {
 		addr:	*auth_addr,
@@ -278,15 +306,6 @@ func main() {
 	r.GET("/get_key/:bucket/:key", func (c *gin.Context) {
 		io_forwarder.Forwarder.forward(c)
 	})
-
-	if *static == "" {
-		log.Printf("[WARN] no static content directory provided, static files handling will be disabled")
-	} else {
-		r.Static("/index.html", *static)
-		r.Static("/scripts", *static)
-		r.Static("/css", *static)
-		r.Static("/build", *static)
-	}
 
 
 	http.ListenAndServe(*addr, r)
