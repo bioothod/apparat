@@ -305,6 +305,9 @@ func main() {
 	r.GET("/get_key/:bucket/:key", func (c *gin.Context) {
 		io_forwarder.Forwarder.forward(c)
 	})
+	r.GET("/meta_json/:bucket/:key", func (c *gin.Context) {
+		io_forwarder.Forwarder.forward(c)
+	})
 
 
 	http.ListenAndServe(*addr, r)

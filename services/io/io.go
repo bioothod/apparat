@@ -325,3 +325,50 @@ func (io *IOCtl) Get(req *http.Request, w http.ResponseWriter, bucket, key strin
 	}
 	return status, err
 }
+
+func (io *IOCtl) MetaJson(oldreq *http.Request, w http.ResponseWriter, bucket, key string, modifier func(x string) string) (int, error) {
+	mkey := modifier(key)
+
+	meta, err := io.FindBucket(bucket)
+	if err != nil {
+		return http.StatusServiceUnavailable, fmt.Errorf("%s: could not find bucket: %s, key: %s -> %s, error: %v",
+		bucket, key, mkey, err)
+	}
+	groups := make([]string, 0, len(meta.Groups))
+	for _, g := range meta.Groups {
+		groups = append(groups, strconv.Itoa(int(g)))
+	}
+
+	url := fmt.Sprintf("%s/%s", io.transcoding_url, mkey)
+
+	client := &http.Client{}
+	req, err := http.NewRequest("GET", url, nil)
+	if err != nil {
+		return http.StatusServiceUnavailable,
+			fmt.Errorf("MetaJson: could not create new HTTP request, key: %s -> %s, url: %s, error: %v",
+				key, mkey, url, err)
+	}
+
+	sgroups := strings.Join(groups, ":")
+
+	req.Header.Set("X-Ell-Bucket", meta.Name)
+	req.Header.Set("X-Ell-Key", key)
+	req.Header.Set("X-Ell-Groups", sgroups)
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return http.StatusServiceUnavailable,
+			fmt.Errorf("MetaJson: could not download metadata, key: %s -> %s, url: %s, error: %v",
+				key, mkey, url, err)
+	}
+	defer resp.Body.Close()
+
+	_, err = goio.Copy(w, resp.Body)
+	if err != nil {
+		return http.StatusServiceUnavailable,
+			fmt.Errorf("MetaJson: could copy metadata, key: %s -> %s, url: %s, error: %v",
+				key, mkey, url, err)
+	}
+
+	return http.StatusOK, nil
+}

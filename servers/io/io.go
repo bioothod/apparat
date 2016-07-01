@@ -25,7 +25,7 @@ func get_handler(c *gin.Context) {
 	if err != nil {
 		c.JSON(status, gin.H {
 			"operation": "get",
-			"error": fmt.Sprintf("get failed: %v", err),
+			"error": err.Error(),
 		})
 		return
 	}
@@ -40,7 +40,23 @@ func get_key_handler(c *gin.Context) {
 	if err != nil {
 		c.JSON(status, gin.H {
 			"operation": "get_key",
-			"error": fmt.Sprintf("get_key failed: %v", err),
+			"error": err.Error(),
+		})
+		return
+	}
+}
+
+func meta_json_handler(c *gin.Context) {
+	username := c.MustGet("username").(string)
+	bucket := c.Param("bucket")
+	key := c.Param("key")
+
+	// data will be streamed to client
+	status, err := ioCtl.MetaJson(c.Request, c.Writer, bucket, key, common.UsernameModifier(username))
+	if err != nil {
+		c.JSON(status, gin.H {
+			"operation": "meta_json",
+			"error": err.Error(),
 		})
 		return
 	}
@@ -54,7 +70,7 @@ func upload_handler(c *gin.Context) {
 	if err != nil {
 		c.JSON(http.StatusServiceUnavailable, gin.H {
 			"operation": "upload",
-			"error": fmt.Sprintf("upload failed: %v", err),
+			"error": err.Error(),
 		})
 		return
 	}
@@ -137,7 +153,7 @@ func main() {
 		err := ioCtl.Ping()
 		if err != nil {
 			c.JSON(http.StatusServiceUnavailable, gin.H {
-				"message": err,
+				"message": err.Error(),
 			})
 			return
 		}
@@ -151,6 +167,7 @@ func main() {
 	authorized.POST("/upload/:key", upload_handler)
 	authorized.GET("/get/:bucket/:key", get_handler)
 	authorized.GET("/get_key/:bucket/:key", get_key_handler)
+	authorized.GET("/meta_json/:bucket/:key", meta_json_handler)
 
 	http.ListenAndServe(*addr, r)
 }
