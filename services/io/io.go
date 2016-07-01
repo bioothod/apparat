@@ -3,6 +3,8 @@ package io
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/bioothod/apparat/services/common"
+	"github.com/bioothod/apparat/services/nullx"
 	"github.com/bioothod/elliptics-go/elliptics"
 	"github.com/bioothod/ebucket/bindings/go"
 	"github.com/golang/glog"
@@ -67,116 +69,73 @@ func (io *IOCtl) FindBucket(name string) (*ebucket.BucketMeta, error) {
 	return io.bp.FindBucket(name)
 }
 
-type Reply struct {
-	Bucket		string			`json:"bucket"`
-	Key		string			`json:"key"`
-	Size		uint64			`json:"size"`
+type uploader struct {
+	ctl		*IOCtl
 
-	MetaBucket	string			`json:"meta_bucket"`
-	MetaKey		string			`json:"meta_key"`
-	MetaSize	uint64			`json:"meta_size"`
+	req		*http.Request
+	key_orig	string
+	key		string
+	meta_key	string
+	size		uint64
+	ctype		string
+	reader		goio.Reader
 }
 
-type NullxInfo struct {
-	ID			string			`json:"id"`
-	Checksum		string			`json:"csum"`
-	Filename		string			`json:"filename"`
-	Group			uint32			`json:"group"`
-	Backend			int			`json:"backend"`
-	Size			uint64			`json:"size"`
-	Offset			uint64			`json:"offset-within-data-file"`
-	Mtime			time.Time
-	Server			string			`json:"server"`
-}
-
-func (info *NullxInfo) UnmarshalJSON(data []byte) (err error) {
-	type Mtime struct {
-		Tsec		int64		`json:"tsec"`
-		Tnsec		int64		`json:"tnsec"`
-	}
-	type Alias NullxInfo
-	tmp := &struct {
-		Mtime Mtime		`json:"mtime"`
-		*Alias
-	} {
-		Alias: (*Alias)(info),
-	}
-
-	if err := json.Unmarshal(data, &tmp); err != nil {
-		return err
-	}
-
-	info.Mtime = time.Unix(tmp.Mtime.Tsec, tmp.Mtime.Tnsec)
-	return nil
-}
-
-type NullxReply struct {
-	Bucket			string			`json:"bucket"`
-	Key			string			`json:"key"`
-	ID			string			`json:"id"`
-	Size			uint64			`json:"size"`
-	MetaBucket		string			`json:"meta_bucket"`
-	MetaKey			string			`json:"meta_key"`
-	MetaID			string			`json:"meta_id"`
-	MetaSize		uint64			`json:"meta_size"`
-}
-
-
-func (io *IOCtl) UploadMedia(oldreq *http.Request, key, meta_key string, size uint64, ctype string, reader goio.Reader) (*Reply, error) {
-	meta, err := io.GetBucket(size)
+func (u *uploader) UploadMedia() (*common.Reply, error) {
+	meta, err := u.ctl.GetBucket(u.size)
 	if err != nil {
-		return nil, fmt.Errorf("%s: could not get bucket, key: %s, size: %d, error: %v", ctype, key, size, err)
+		return nil, fmt.Errorf("%s: could not get bucket, key: %s, size: %d, error: %v", u.ctype, u.key_orig, u.size, err)
 	}
 	groups := make([]string, 0, len(meta.Groups))
 	for _, g := range meta.Groups {
 		groups = append(groups, strconv.Itoa(int(g)))
 	}
 
-	url := fmt.Sprintf("%s/%s", io.transcoding_url, key)
+	url := fmt.Sprintf("%s/%s", u.ctl.transcoding_url, u.key)
 
 	client := &http.Client{}
-	req, err := http.NewRequest("POST", url, reader)
+	req, err := http.NewRequest("POST", url, u.reader)
 	if err != nil {
-		return nil, fmt.Errorf("%s: transcoding: could not create new HTTP request, key: %s, url: %s, size: %d, error: %v",
-			ctype, key, url, size, err)
+		return nil, fmt.Errorf("%s: transcoding: could not create new HTTP request, key: %s -> %s, url: %s, size: %d, error: %v",
+			u.ctype, u.key_orig, u.key, url, u.size, err)
 	}
-	if size != 0 {
-		req.ContentLength = int64(size)
+	if u.size != 0 {
+		req.ContentLength = int64(u.size)
 	}
 
 	sgroups := strings.Join(groups, ":")
 
-	req.Header.Set("Content-Type", ctype)
+	req.Header.Set("Content-Type", u.ctype)
 
 	req.Header.Set("X-Ell-Bucket", meta.Name)
-	req.Header.Set("X-Ell-Key", key)
+	req.Header.Set("X-Ell-Key", u.key)
 	req.Header.Set("X-Ell-Groups", sgroups)
 
 	req.Header.Set("X-Ell-Meta-Bucket", meta.Name)
-	req.Header.Set("X-Ell-Meta-Key", meta_key)
+	req.Header.Set("X-Ell-Meta-Key", u.meta_key)
 	req.Header.Set("X-Ell-Meta-Groups", sgroups)
 
 	resp, err := client.Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("%s: transcoding: could not upload file, key: %s, url: %s, size: %d, error: %v",
-			ctype, key, url, size, err)
+		return nil, fmt.Errorf("%s: transcoding: could not upload file, key: %s -> %s, url: %s, size: %d, error: %v",
+			u.ctype, u.key_orig, u.key, url, u.size, err)
 	}
 	defer resp.Body.Close()
 
 	data, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
-		return nil, fmt.Errorf("%s: transcoding: could not read reply, key: %s, url: %s, size: %d, error: %v",
-			ctype, key, url, size, err)
+		return nil, fmt.Errorf("%s: transcoding: could not read reply, key: %s -> %s, url: %s, size: %d, error: %v",
+			u.ctype, u.key_orig, u.key, url, u.size, err)
 	}
 
-	var nullx_reply NullxReply
+	var nullx_reply nullx.Reply
 	err = json.Unmarshal(data, &nullx_reply)
 	if err != nil {
-		return nil, fmt.Errorf("%s: could not decode reply, key: %s, url: %s, reply: '%s', error: %v",
-			ctype, key, url, string(data), err)
+		return nil, fmt.Errorf("%s: could not decode reply, key: %s -> %s, url: %s, reply: '%s', error: %v",
+			u.ctype, u.key_orig, u.key, url, string(data), err)
 	}
 
-	reply := Reply {
+	reply := common.Reply {
 		Key:		nullx_reply.Key,
 		Bucket:		nullx_reply.Bucket,
 		Size:		nullx_reply.Size,
@@ -184,75 +143,100 @@ func (io *IOCtl) UploadMedia(oldreq *http.Request, key, meta_key string, size ui
 		MetaKey:	nullx_reply.MetaKey,
 		MetaBucket:	nullx_reply.MetaBucket,
 		MetaSize:	nullx_reply.MetaSize,
+
+		ContentType:	u.ctype,
+
+		Timestamp:	nullx_reply.Timestamp,
 	}
 
 	return &reply, nil
 }
 
-func (io *IOCtl) UploadData(oldreq *http.Request, key string, size uint64, reader goio.Reader) (*Reply, error) {
-	session, err := elliptics.NewSession(io.node)
+func (u *uploader) UploadData() (*common.Reply, error) {
+	session, err := elliptics.NewSession(u.ctl.node)
 	if err != nil {
-		return nil, fmt.Errorf("could not create new session, key: %s, error: %v", key, err)
+		return nil, fmt.Errorf("could not create new session, key: %s -> %s, error: %v", u.key_orig, u.key, err)
 	}
 	defer session.Delete()
 
-	meta, err := io.GetBucket(size)
+	meta, err := u.ctl.GetBucket(u.size)
 	if err != nil {
-		return nil, fmt.Errorf("could not get bucket, key: %s, size: %d, error: %v", key, size, err)
+		return nil, fmt.Errorf("could not get bucket, key: %s -> %s, size: %d, error: %v", u.key_orig, u.key, u.size, err)
 	}
 	session.SetGroups(meta.Groups)
 	session.SetNamespace(meta.Name)
 
-	if size == 0 {
-		size = math.MaxUint64
+	if u.size == 0 {
+		u.size = math.MaxUint64
 	}
 
-	writer, err := elliptics.NewWriteSeeker(session, key, 0, size, 0)
+	timestamp := time.Now()
+
+	writer, err := elliptics.NewWriteSeeker(session, u.key, 0, u.size, 0)
 	if err != nil {
-		return nil, fmt.Errorf("could not create new writer, bucket: %s, key: %s, groups: %v, size: %d, error: %v",
-			meta.Name, key, meta.Groups, size, err)
+		return nil, fmt.Errorf("could not create new writer, bucket: %s, key: %s -> %s, groups: %v, size: %d, error: %v",
+			meta.Name, u.key_orig, u.key, meta.Groups, u.size, err)
 	}
 	defer writer.Free()
 
 	var copied int64
-	copied, err = goio.Copy(writer, reader)
+	copied, err = goio.Copy(writer, u.reader)
 	if err != nil {
-		return nil, fmt.Errorf("could not copy data, bucket: %s, key: %s, groups: %v, size: %d, copied: %d, error: %v",
-			meta.Name, key, meta.Groups, size, copied, err)
+		return nil, fmt.Errorf("could not copy data, bucket: %s, key: %s -> %s, groups: %v, size: %d, copied: %d, error: %v",
+			meta.Name, u.key_orig, u.key, meta.Groups, u.size, copied, err)
 	}
 
-	reply := Reply {
+	reply := common.Reply {
 		Bucket:		meta.Name,
-		Key:		key,
+		Key:		u.key,
 		Size:		uint64(copied),
+		Timestamp:	timestamp,
 	}
 
 	return &reply, nil
 }
 
-func (io *IOCtl) UploadOne(req *http.Request, key, meta_key string, size uint64, ctype string, reader goio.Reader) (*Reply, error) {
-	if strings.HasPrefix(ctype, "audio/") || strings.HasPrefix(ctype, "video/") {
-		return io.UploadMedia(req, key, meta_key, size, ctype, reader)
+func (u *uploader) Do() (*common.Reply, error) {
+	var reply *common.Reply
+	var err error
+
+	if strings.HasPrefix(u.ctype, "audio/") || strings.HasPrefix(u.ctype, "video/") {
+		reply, err = u.UploadMedia()
 	} else {
-		return io.UploadData(req, key, size, reader)
+		reply, err = u.UploadData()
 	}
+
+	reply.ContentType = u.ctype
+	reply.Name = u.key_orig
+
+	return reply, err
 }
 
-func (io *IOCtl) Upload(req *http.Request, key string, modifier func(x string) string) ([]Reply, error) {
-	replies := make([]Reply, 0)
+func (io *IOCtl) Upload(req *http.Request, key string, modifier common.ModifierFunc) ([]common.Reply, error) {
+	replies := make([]common.Reply, 0)
 
 	var size uint64
 	if req.ContentLength > 0 {
 		size = uint64(req.ContentLength)
 	}
 
-	meta_key := fmt.Sprintf("meta\x00%s", key)
-
 	ctype := req.Header.Get("Content-Type")
+
+	u := &uploader {
+		ctl:		io,
+		req:		req,
+		key_orig:	key,
+		key:		modifier(key),
+		meta_key:	modifier(common.MetaModifier()(key)),
+		size:		size,
+		ctype:		ctype,
+	}
 
 	mr, _ := req.MultipartReader()
 	if mr == nil {
-		reply, err := io.UploadOne(req, modifier(key), modifier(meta_key), size, ctype, req.Body)
+		u.reader = req.Body
+
+		reply, err := u.Do()
 		if err != nil {
 			return nil, err
 		}
@@ -269,12 +253,16 @@ func (io *IOCtl) Upload(req *http.Request, key string, modifier func(x string) s
 			}
 
 			ct := p.Header.Get("Content-Type")
-			if ct == "" {
-				ct = ctype
+			if ct != "" {
+				u.ctype = ct
 			}
 			key = p.FileName()
 
-			reply, err := io.UploadOne(req, modifier(key), modifier(meta_key), size, ct, p)
+			u.key = modifier(key)
+			u.meta_key = modifier(common.MetaModifier()(key))
+			u.reader = p
+
+			reply, err := u.Do()
 			if err != nil {
 				return nil, err
 			}

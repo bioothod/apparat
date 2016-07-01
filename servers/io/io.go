@@ -1,13 +1,12 @@
 package main
 
 import (
-	"encoding/base64"
 	"flag"
 	"fmt"
 	"github.com/bioothod/apparat/middleware"
+	"github.com/bioothod/apparat/services/common"
 	"github.com/bioothod/apparat/services/io"
 	"github.com/gin-gonic/gin"
-	"golang.org/x/crypto/sha3"
 	"log"
 	"net/http"
 	"strconv"
@@ -16,25 +15,13 @@ import (
 
 var ioCtl *io.IOCtl
 
-type modifier_func func(string) string
-
-func key_modifier(username string) modifier_func {
-	return func(key string) string {
-		tmp := fmt.Sprintf("%s\x00%s", username, key)
-		res := make([]byte, 64)
-
-		sha3.ShakeSum256(res, []byte(tmp))
-		return base64.URLEncoding.EncodeToString(res)
-	}
-}
-
 func get_handler(c *gin.Context) {
 	username := c.MustGet("username").(string)
 	bucket := c.Param("bucket")
 	key := c.Param("key")
 
 	// data will be streamed to client
-	status, err := ioCtl.Get(c.Request, c.Writer, bucket, key, key_modifier(username))
+	status, err := ioCtl.Get(c.Request, c.Writer, bucket, key, common.UsernameModifier(username))
 	if err != nil {
 		c.JSON(status, gin.H {
 			"operation": "get",
@@ -63,7 +50,7 @@ func upload_handler(c *gin.Context) {
 	username := c.MustGet("username").(string)
 	key := c.Param("key")
 
-	reply, err := ioCtl.Upload(c.Request, key, key_modifier(username))
+	reply, err := ioCtl.Upload(c.Request, key, common.UsernameModifier(username))
 	if err != nil {
 		c.JSON(http.StatusServiceUnavailable, gin.H {
 			"operation": "upload",

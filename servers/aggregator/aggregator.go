@@ -8,7 +8,7 @@ import (
 	"github.com/bioothod/apparat/middleware"
 	"github.com/bioothod/apparat/services/auth"
 	"github.com/bioothod/apparat/services/index"
-	sio "github.com/bioothod/apparat/services/io"
+	"github.com/bioothod/apparat/services/common"
 	"github.com/gin-gonic/contrib/static"
 	"github.com/gin-gonic/gin"
 	"io"
@@ -97,7 +97,7 @@ func (idx *Indexer) forward(c *gin.Context) {
 	if len(filename) == 0 {
 		c.JSON(http.StatusBadRequest, gin.H {
 			"operation": "forward",
-			"error": fmt.Sprintf("invalid url: %s, must contain '/upiload/filename'", c.Request.URL.String()),
+			"error": fmt.Sprintf("invalid url: %s, must contain '/upload/filename'", c.Request.URL.String()),
 		})
 		return
 	}
@@ -128,11 +128,11 @@ func (idx *Indexer) forward(c *gin.Context) {
 
 	type io_reply struct {
 		Operation		string		`json:"operation"`
-		Reply			[]sio.Reply	`json:"reply"`
+		Reply			[]common.Reply	`json:"reply"`
 	}
-	var reply io_reply
+	var iore io_reply
 
-	err = json.Unmarshal(data, &reply)
+	err = json.Unmarshal(data, &iore)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H {
 			"operation": "forward",
@@ -141,36 +141,35 @@ func (idx *Indexer) forward(c *gin.Context) {
 		return
 	}
 
-	tag := time.Now().Format("2006-01-02")
+	r := iore.Reply[0]
+
+	tag := r.Timestamp.Format("2006-01-02")
+	tags := []string{tag, "all"}
+
+	ctype := r.ContentType
+	if strings.HasPrefix(ctype, "audio/") {
+		tags = append(tags, "audio")
+	}
+	if strings.HasPrefix(ctype, "video/") {
+		tags = append(tags, "video")
+	}
+	if strings.HasPrefix(ctype, "image/") {
+		tags = append(tags, "image")
+	}
 
 	ireq := &index.IndexRequest {
 		Files: []index.Request {
 			index.Request {
-				File: index.Name {
-					Key:		reply.Reply[0].Key,
-					Bucket:		reply.Reply[0].Bucket,
-					Name:		filename,
+				File: common.Reply {
+					Key:		r.Key,
+					Bucket:		r.Bucket,
+					Name:		r.Name,
+					Timestamp:	r.Timestamp,
+					Size:		r.Size,
 				},
-				Tags: []string {
-					tag,
-				},
+				Tags: tags,
 			},
 		},
-	}
-
-	if len(reply.Reply[0].MetaKey) != 0 {
-		req := index.Request {
-			File: index.Name {
-				Key: reply.Reply[0].MetaKey,
-				Bucket: reply.Reply[0].MetaBucket,
-				Name: filename + " (meta)",
-			},
-			Tags: []string {
-				tag,
-			},
-		}
-
-		ireq.Files = append(ireq.Files, req)
 	}
 
 	index_data, err := json.Marshal(&ireq)
