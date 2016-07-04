@@ -20,10 +20,10 @@ import (
 type IOCtl struct {
 	node		*elliptics.Node
 	bp		*ebucket.BucketProcessor
-	transcoding_url	string
+	transcoding_host	string
 }
 
-func NewIOCtl(logfile, loglevel string, remotes []string, mgroups []uint32, bnames []string, transcoding_url string) (*IOCtl, error) {
+func NewIOCtl(logfile, loglevel string, remotes []string, mgroups []uint32, bnames []string, transcoding_host string) (*IOCtl, error) {
 	node, err := elliptics.NewNode(logfile, loglevel)
 	if err != nil {
 		return nil, err
@@ -43,7 +43,7 @@ func NewIOCtl(logfile, loglevel string, remotes []string, mgroups []uint32, bnam
 	return &IOCtl {
 		node:			node,
 		bp:			bp,
-		transcoding_url:	transcoding_url,
+		transcoding_host:	transcoding_host,
 	}, nil
 }
 
@@ -91,7 +91,7 @@ func (u *uploader) UploadMedia() (*common.Reply, error) {
 		groups = append(groups, strconv.Itoa(int(g)))
 	}
 
-	url := fmt.Sprintf("%s/%s", u.ctl.transcoding_url, u.key)
+	url := fmt.Sprintf("http://%s/transcode/%s", u.ctl.transcoding_host, u.key)
 
 	client := &http.Client{}
 	req, err := http.NewRequest("POST", url, u.reader)
@@ -147,6 +147,8 @@ func (u *uploader) UploadMedia() (*common.Reply, error) {
 		ContentType:	u.ctype,
 
 		Timestamp:	nullx_reply.Timestamp,
+
+		Media:		nullx_reply.Media,
 	}
 
 	return &reply, nil
@@ -327,7 +329,7 @@ func (io *IOCtl) Get(req *http.Request, w http.ResponseWriter, bucket, key strin
 }
 
 func (io *IOCtl) MetaJson(oldreq *http.Request, w http.ResponseWriter, bucket, key string, modifier func(x string) string) (int, error) {
-	mkey := modifier(key)
+	mkey := modifier(common.MetaModifier()(key))
 
 	meta, err := io.FindBucket(bucket)
 	if err != nil {
@@ -339,7 +341,7 @@ func (io *IOCtl) MetaJson(oldreq *http.Request, w http.ResponseWriter, bucket, k
 		groups = append(groups, strconv.Itoa(int(g)))
 	}
 
-	url := fmt.Sprintf("%s/%s", io.transcoding_url, mkey)
+	url := fmt.Sprintf("http://%s/meta_json/%s/%s", io.transcoding_host, bucket, mkey)
 
 	client := &http.Client{}
 	req, err := http.NewRequest("GET", url, nil)
@@ -362,6 +364,18 @@ func (io *IOCtl) MetaJson(oldreq *http.Request, w http.ResponseWriter, bucket, k
 				key, mkey, url, err)
 	}
 	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return resp.StatusCode,
+			fmt.Errorf("MetaJson: could not download metadata, key: %s -> %s, url: %s",
+				key, mkey, url)
+	}
+
+	for hk, hv := range resp.Header {
+		for _, v := range(hv) {
+			w.Header().Add(hk, v)
+		}
+	}
 
 	_, err = goio.Copy(w, resp.Body)
 	if err != nil {
