@@ -79,6 +79,8 @@ type Reply struct {
 	MetaID			string			`json:"meta_id"`
 
 	Timestamp		time.Time
+
+	Media			Media			`json:"media"`
 }
 
 func (r *Reply) UnmarshalJSON(data []byte) (err error) {
