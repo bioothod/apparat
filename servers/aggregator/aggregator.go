@@ -146,15 +146,26 @@ func (idx *Indexer) forward(c *gin.Context) {
 	tag := r.Timestamp.Format("2006-01-02")
 	tags := []string{tag, "all"}
 
-	ctype := r.ContentType
-	if strings.HasPrefix(ctype, "audio/") {
-		tags = append(tags, "audio")
-	}
-	if strings.HasPrefix(ctype, "video/") {
-		tags = append(tags, "video")
-	}
-	if strings.HasPrefix(ctype, "image/") {
-		tags = append(tags, "image")
+	if len(r.Media.Tracks) != 0 {
+		for _, track := range r.Media.Tracks {
+			if strings.HasPrefix(track.MimeType, "audio/") {
+				tags = append(tags, "audio")
+			}
+			if strings.HasPrefix(track.MimeType, "video/") {
+				tags = append(tags, "video")
+			}
+		}
+	} else {
+		ctype := r.ContentType
+		if strings.HasPrefix(ctype, "audio/") {
+			tags = append(tags, "audio")
+		}
+		if strings.HasPrefix(ctype, "video/") {
+			tags = append(tags, "video")
+		}
+		if strings.HasPrefix(ctype, "image/") {
+			tags = append(tags, "image")
+		}
 	}
 
 	ireq := &index.IndexRequest {
