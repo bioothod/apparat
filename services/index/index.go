@@ -120,7 +120,7 @@ func (idx *Indexer) check_and_create_table(tag string) error {
 		return fmt.Errorf("index '%s' is not allowed", tag)
 	}
 
-	rows, err := idx.ctl.db.Query("SELECT `key` FROM `" + iname + "` LIMIT 1")
+	rows, err := idx.ctl.db.Query("SELECT `name` FROM `" + iname + "` LIMIT 1")
 	if err != nil {
 		e, ok := err.(*mysql.MySQLError)
 
@@ -134,7 +134,7 @@ func (idx *Indexer) check_and_create_table(tag string) error {
 			"`name` VARCHAR(255) NOT NULL, " +
 			"`timestamp` DATETIME NOT NULL, " +
 			"`size` BIGINT UNSIGNED NOT NULL, " +
-			"PRIMARY KEY (`key`)" +
+			"PRIMARY KEY (`name`)" +
 			") ENGINE=InnoDB DEFAULT CHARSET=UTF8")
 		if err != nil {
 			e, ok := err.(*mysql.MySQLError)
