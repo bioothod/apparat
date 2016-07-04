@@ -1,6 +1,9 @@
 package common
 
-import "time"
+import (
+	"github.com/bioothod/apparat/services/nullx"
+	"time"
+)
 
 type Reply struct {
 	Name		string			`json:"name"`
@@ -16,5 +19,6 @@ type Reply struct {
 	ContentType	string			`json:"content_type,omitempty"`
 
 	Timestamp	time.Time		`json:"timestamp,omitempty"`
+	Media		nullx.Media		`json:"media,omitempty"`
 }
 
