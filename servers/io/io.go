@@ -97,7 +97,7 @@ func main() {
 	addr := flag.String("addr", "", "address to listen auth server at")
 	mgroups := flag.String("metadata-groups", "", "colon-separated list of metadata groups, format: 1:2:3")
 	auth := flag.String("auth", "", "authentication check service (full-featured URL like http://auth.example.com:1234/check)")
-	transcode := flag.String("transcode", "", "Nullx transcoding service URL (example: http://nullx.example.com:1234/transcode)")
+	transcode := flag.String("transcode", "", "Nullx transcoding service host (example: nullx.example.com:1234)")
 	logfile := flag.String("log-file", "/dev/stdout", "Elliptics log file")
 	loglevel := flag.String("log-level", "error", "Elliptics log level (debug, notice, info, error)")
 	var remotes sslice
