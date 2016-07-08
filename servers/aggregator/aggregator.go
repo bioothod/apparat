@@ -1,22 +1,15 @@
 package main
 
 import (
-	"bytes"
-	"encoding/json"
 	"flag"
 	"fmt"
 	"github.com/bioothod/apparat/middleware"
-	"github.com/bioothod/apparat/services/auth"
-	"github.com/bioothod/apparat/services/index"
-	"github.com/bioothod/apparat/services/common"
+	"github.com/bioothod/apparat/services/aggregator"
 	"github.com/gin-gonic/contrib/static"
 	"github.com/gin-gonic/gin"
-	"io"
-	"io/ioutil"
 	"log"
 	"net/http"
 	"os"
-	"strings"
 	"time"
 )
 
@@ -34,206 +27,6 @@ func static_index_handler(root string) gin.HandlerFunc {
 	}
 }
 
-type Forwarder struct {
-	addr		string
-}
-
-func (f *Forwarder) send(c *gin.Context) (*http.Response, error) {
-	method := c.Request.Method
-
-	url := c.Request.URL
-	url.Host = f.addr
-	url.Scheme = "http"
-
-	req, err := http.NewRequest(method, url.String(), c.Request.Body)
-	if err != nil {
-		return nil, fmt.Errorf("could not create new request: method: %s, url: %s, error: %v", method, url.String(), err)
-	}
-
-	req.Header = c.Request.Header
-
-	client := &http.Client{}
-	resp, err := client.Do(req)
-	if err != nil {
-		return nil, fmt.Errorf("could not perform operation: method: %s, url: %s, error: %v", method, url.String(), err)
-	}
-
-	return resp, nil
-}
-
-func (f *Forwarder) flush(c *gin.Context, resp *http.Response) {
-	for k, v := range resp.Header {
-		for _, hv := range v {
-			c.Writer.Header().Add(k, hv)
-		}
-	}
-	c.Writer.WriteHeader(resp.StatusCode)
-	io.Copy(c.Writer, resp.Body)
-}
-
-func (f *Forwarder) forward(c *gin.Context) {
-	resp, err := f.send(c)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H {
-			"operation": "forward",
-			"error": err.Error(),
-		})
-		return
-	}
-	defer resp.Body.Close()
-
-	f.flush(c, resp)
-}
-
-
-type Indexer struct {
-	Forwarder
-
-	index_url		string
-}
-
-func (idx *Indexer) forward(c *gin.Context) {
-	filename := strings.Trim(c.Request.URL.Path[len("/upload/"):], "/")
-	if len(filename) == 0 {
-		c.JSON(http.StatusBadRequest, gin.H {
-			"operation": "forward",
-			"error": fmt.Sprintf("invalid url: %s, must contain '/upload/filename'", c.Request.URL.String()),
-		})
-		return
-	}
-
-	resp, err := idx.send(c)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H {
-			"operation": "forward",
-			"error": err.Error(),
-		})
-		return
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		idx.flush(c, resp)
-		return
-	}
-
-	data, err := ioutil.ReadAll(resp.Body)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H {
-			"operation": "forward",
-			"error": fmt.Sprintf("could not read response: %v", err),
-		})
-		return
-	}
-
-	type io_reply struct {
-		Operation		string		`json:"operation"`
-		Reply			[]common.Reply	`json:"reply"`
-	}
-	var iore io_reply
-
-	err = json.Unmarshal(data, &iore)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H {
-			"operation": "forward",
-			"error": fmt.Sprintf("could not unpack JSON response: '%s', error: %v", string(data), err),
-		})
-		return
-	}
-
-	r := iore.Reply[0]
-
-	tag := r.Timestamp.Format("2006-01-02")
-	tags := []string{tag, "all"}
-
-	if len(r.Media.Tracks) != 0 {
-		for _, track := range r.Media.Tracks {
-			if strings.HasPrefix(track.MimeType, "audio/") {
-				tags = append(tags, "audio")
-			}
-			if strings.HasPrefix(track.MimeType, "video/") {
-				tags = append(tags, "video")
-			}
-		}
-	} else {
-		ctype := r.ContentType
-		if strings.HasPrefix(ctype, "audio/") {
-			tags = append(tags, "audio")
-		}
-		if strings.HasPrefix(ctype, "video/") {
-			tags = append(tags, "video")
-		}
-		if strings.HasPrefix(ctype, "image/") {
-			tags = append(tags, "image")
-		}
-	}
-
-	ireq := &index.IndexRequest {
-		Files: []index.Request {
-			index.Request {
-				File: common.Reply {
-					Key:		r.Key,
-					Bucket:		r.Bucket,
-					Name:		r.Name,
-					Timestamp:	r.Timestamp,
-					Size:		r.Size,
-				},
-				Tags: tags,
-			},
-		},
-	}
-
-	index_data, err := json.Marshal(&ireq)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H {
-			"operation": "forward",
-			"error": fmt.Sprintf("could not pack JSON index request, error: %v", err),
-		})
-		return
-	}
-
-	breader := bytes.NewReader(index_data)
-
-	client := &http.Client{}
-	index_req, err := http.NewRequest("POST", idx.index_url, breader)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H {
-			"operation": "forward",
-			"error": fmt.Sprintf("could not create index request to url: %s, error: %v", idx.index_url, err),
-		})
-		return
-	}
-	cookie, err := c.Request.Cookie(auth.CookieName)
-	if err == nil {
-		index_req.AddCookie(cookie)
-	}
-
-	index_resp, err := client.Do(index_req)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H {
-			"operation": "forward",
-			"error": fmt.Sprintf("could not send index request: '%s', error: %v", string(index_data), err),
-		})
-		return
-	}
-	defer index_resp.Body.Close()
-
-	if index_resp.StatusCode != http.StatusOK {
-		c.JSON(index_resp.StatusCode, gin.H {
-			"operation": "forward",
-			"error": fmt.Sprintf("could not send index request: '%s', status: %d", string(index_data), index_resp.StatusCode),
-		})
-		return
-	}
-
-	for k, v := range resp.Header {
-		for _, hv := range v {
-			c.Writer.Header().Add(k, hv)
-		}
-	}
-	c.Writer.WriteHeader(http.StatusOK)
-	c.Writer.Write(data)
-}
 
 func main() {
 	addr := flag.String("addr", "", "address to listen auth server at")
@@ -241,6 +34,7 @@ func main() {
 	index_addr := flag.String("index-addr", "", "address where index server lives")
 	io_addr := flag.String("io-addr", "", "address where IO server lives")
 	static_dir := flag.String("static", "", "directory for static content")
+	nulla_addr := flag.String("nulla-addr", "", "address where Nulla streaming server lives")
 
 	flag.Parse()
 	if *addr == "" {
@@ -254,6 +48,9 @@ func main() {
 	}
 	if *io_addr == "" {
 		log.Fatalf("You must provide IO server addr")
+	}
+	if *nulla_addr == "" {
+		log.Fatalf("You must provide Nulla server addr")
 	}
 
 
@@ -274,52 +71,58 @@ func main() {
 		r.Use(static.Serve("/", static.LocalFile(*static_dir, false)))
 	}
 
-	auth_forwarder := &Forwarder {
-		addr:	*auth_addr,
+	auth_forwarder := &aggregator.Forwarder {
+		Addr:	*auth_addr,
 	}
 
 	r.POST("/login", func (c *gin.Context) {
-		auth_forwarder.forward(c)
+		auth_forwarder.Forward(c)
 	})
 	r.POST("/signup", func (c *gin.Context) {
-		auth_forwarder.forward(c)
+		auth_forwarder.Forward(c)
 	})
 	r.POST("/update", func (c *gin.Context) {
-		auth_forwarder.forward(c)
+		auth_forwarder.Forward(c)
 	})
 
-	index_forwarder := &Forwarder {
-		addr:	*index_addr,
+	index_forwarder := &aggregator.Forwarder {
+		Addr:	*index_addr,
 	}
 	r.POST("/index", func (c *gin.Context) {
-		index_forwarder.forward(c)
+		index_forwarder.Forward(c)
 	})
 	r.POST("/list", func (c *gin.Context) {
-		index_forwarder.forward(c)
+		index_forwarder.Forward(c)
 	})
 	r.POST("/list_meta", func (c *gin.Context) {
-		index_forwarder.forward(c)
+		index_forwarder.Forward(c)
 	})
 
-	io_forwarder := &Indexer {
-		Forwarder: Forwarder {
-			addr:	*io_addr,
+	nulla_forwarder := &aggregator.Forwarder {
+		Addr:	*nulla_addr,
+	}
+	r.POST("/manifest", func (c *gin.Context) {
+		nulla_forwarder.Forward(c)
+	})
+
+	io_forwarder := &aggregator.Indexer {
+		Forwarder: aggregator.Forwarder {
+			Addr:	*io_addr,
 		},
-		index_url: fmt.Sprintf("http://%s/index", *index_addr),
+		IndexUrl: fmt.Sprintf("http://%s/index", *index_addr),
 	}
 	r.POST("/upload/:key", func (c *gin.Context) {
-		io_forwarder.forward(c)
+		io_forwarder.Forward(c)
 	})
 	r.GET("/get/:bucket/:key", func (c *gin.Context) {
-		io_forwarder.Forwarder.forward(c)
+		io_forwarder.Forwarder.Forward(c)
 	})
 	r.GET("/get_key/:bucket/:key", func (c *gin.Context) {
-		io_forwarder.Forwarder.forward(c)
+		io_forwarder.Forwarder.Forward(c)
 	})
 	r.GET("/meta_json/:bucket/:key", func (c *gin.Context) {
-		io_forwarder.Forwarder.forward(c)
+		io_forwarder.Forwarder.Forward(c)
 	})
-
 
 	http.ListenAndServe(*addr, r)
 }
