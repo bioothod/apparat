@@ -308,9 +308,11 @@ func (io *IOCtl) GetKey(req *http.Request, w http.ResponseWriter, bucket, key st
 	var copied int64
 	copied, err = goio.Copy(w, reader)
 	if err != nil {
-		return http.StatusServiceUnavailable,
-			fmt.Errorf("could not copy data, bucket: %s, key: %s, groups: %v, copied: %d, error: %v",
+		// we can not return error here, since io.Copy() has already put 200 to the client
+
+		glog.Errorf("could not copy data, bucket: %s, key: %s, groups: %v, copied: %d, error: %v",
 				meta.Name, key, meta.Groups, copied, err)
+		return http.StatusOK, nil
 	}
 
 	glog.Infof("GetKey: bucket: %s, key: %s, groups: %v, copied: %d", bucket, key, meta.Groups, copied)
