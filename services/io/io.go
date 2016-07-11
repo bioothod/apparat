@@ -6,7 +6,7 @@ import (
 	"github.com/bioothod/apparat/services/common"
 	"github.com/bioothod/apparat/services/nullx"
 	"github.com/bioothod/elliptics-go/elliptics"
-	"github.com/bioothod/ebucket/bindings/go"
+	"github.com/bioothod/ebucket-go"
 	"github.com/golang/glog"
 	goio "io"
 	"io/ioutil"
