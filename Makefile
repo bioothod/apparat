@@ -28,4 +28,5 @@ build:
 	done
 
 install: build
+	mkdir -p ${GOPATH}/bin/
 	cp -rf ${APPARAT_BINARIES} ${GOPATH}/bin/
