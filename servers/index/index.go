@@ -4,6 +4,7 @@ import (
 	"flag"
 	"fmt"
 	"github.com/bioothod/apparat/middleware"
+	"github.com/bioothod/apparat/services/common"
 	"github.com/bioothod/apparat/services/index"
 	"github.com/gin-gonic/gin"
 	"log"
@@ -16,9 +17,11 @@ func index_tags(c *gin.Context) {
 	username := c.MustGet("username").(string)
 	idx, err := index.NewIndexer(username, idxCtl)
 	if err != nil {
+		estr := fmt.Sprintf("could not create new indexer for user '%s', error: %v", username, err)
+		common.NewErrorString(c, "index", estr)
 		c.JSON(http.StatusServiceUnavailable, gin.H {
 			"operation": "index",
-			"error": fmt.Sprintf("could not create new indexer for user '%s', error: %v", username, err),
+			"error": estr,
 		})
 		return
 	}
@@ -26,18 +29,22 @@ func index_tags(c *gin.Context) {
 	var ireq index.IndexRequest
 	err = c.BindJSON(&ireq)
 	if err != nil {
+		estr := fmt.Sprintf("could not parse json request from user '%s', error: %v", username, err)
+		common.NewErrorString(c, "index", estr)
 		c.JSON(http.StatusBadRequest, gin.H {
 			"operation": "index",
-			"error": fmt.Sprintf("could not parse json request from user '%s', error: %v", username, err),
+			"error": estr,
 		})
 		return
 	}
 
 	err = idx.Index(&ireq)
 	if err != nil {
+		estr := fmt.Sprintf("could not index tags from user '%s', error: %v", username, err)
+		common.NewErrorString(c, "index", estr)
 		c.JSON(http.StatusInternalServerError, gin.H {
 			"operation": "index",
-			"error": fmt.Sprintf("could not index tags from user '%s', error: %v", username, err),
+			"error": estr,
 		})
 		return
 	}
@@ -51,18 +58,22 @@ func list_meta_tags(c *gin.Context) {
 	username := c.MustGet("username").(string)
 	idx, err := index.NewIndexer(username, idxCtl)
 	if err != nil {
+		estr := fmt.Sprintf("could not create new indexer for user '%s', error: %v", username, err)
+		common.NewErrorString(c, "list_meta", estr)
 		c.JSON(http.StatusServiceUnavailable, gin.H {
 			"operation": "list_meta",
-			"error": fmt.Sprintf("could not create new indexer for user '%s', error: %v", username, err),
+			"error": estr,
 		})
 		return
 	}
 
 	reply, err := idx.ListMeta()
 	if err != nil {
+		estr := fmt.Sprintf("could not list meta tags from user '%s', error: %v", username, err)
+		common.NewErrorString(c, "list_meta", estr)
 		c.JSON(http.StatusInternalServerError, gin.H {
 			"operation": "list_meta",
-			"error": fmt.Sprintf("could not list meta tags from user '%s', error: %v", username, err),
+			"error": estr,
 		})
 		return
 	}
@@ -77,9 +88,11 @@ func list_tags(c *gin.Context) {
 	username := c.MustGet("username").(string)
 	idx, err := index.NewIndexer(username, idxCtl)
 	if err != nil {
+		estr := fmt.Sprintf("could not create new indexer for user '%s', error: %v", username, err)
+		common.NewErrorString(c, "list", estr)
 		c.JSON(http.StatusServiceUnavailable, gin.H {
 			"operation": "list",
-			"error": fmt.Sprintf("could not create new indexer for user '%s', error: %v", username, err),
+			"error": estr,
 		})
 		return
 	}
@@ -87,18 +100,22 @@ func list_tags(c *gin.Context) {
 	var obj index.ListRequest
 	err = c.BindJSON(&obj)
 	if err != nil {
+		estr := fmt.Sprintf("could not parse json request from user '%s', error: %v", username, err)
+		common.NewErrorString(c, "list", estr)
 		c.JSON(http.StatusBadRequest, gin.H {
 			"operation": "list",
-			"error": fmt.Sprintf("could not parse json request from user '%s', error: %v", username, err),
+			"error": estr,
 		})
 		return
 	}
 
 	reply, err := idx.List(&obj)
 	if err != nil {
+		estr := fmt.Sprintf("could not list tags from user '%s', error: %v", username, err)
+		common.NewErrorString(c, "list", estr)
 		c.JSON(http.StatusInternalServerError, gin.H {
 			"operation": "list",
-			"error": fmt.Sprintf("could not list tags from user '%s', error: %v", username, err),
+			"error": estr,
 		})
 		return
 	}

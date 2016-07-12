@@ -20,12 +20,24 @@ type Indexer struct {
 	IndexUrl		string
 }
 
+func (idx *Indexer) FormatError(c *gin.Context, format string, args ...interface{}) string {
+	estr := fmt.Sprintf("could not forward request: destination: method: %s, addres: %s, path: %s, index_url: %s, error: %s",
+		c.Request.Method,
+		idx.Forwarder.Addr,
+		c.Request.URL.Path,
+		idx.IndexUrl,
+		format,
+		args)
+	common.NewErrorString(c, "forward", estr)
+	return estr
+}
+
 func (idx *Indexer) Forward(c *gin.Context) {
 	filename := strings.Trim(c.Request.URL.Path[len("/upload/"):], "/")
 	if len(filename) == 0 {
 		c.JSON(http.StatusBadRequest, gin.H {
 			"operation": "forward",
-			"error": fmt.Sprintf("invalid url: %s, must contain '/upload/filename'", c.Request.URL.String()),
+			"error": idx.FormatError(c, "invalid url: %s, must contain '/upload/filename'", c.Request.URL.String()),
 		})
 		return
 	}
@@ -34,7 +46,7 @@ func (idx *Indexer) Forward(c *gin.Context) {
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H {
 			"operation": "forward",
-			"error": err.Error(),
+			"error": idx.FormatError(c, "forward send failed: %v", err),
 		})
 		return
 	}
@@ -49,7 +61,7 @@ func (idx *Indexer) Forward(c *gin.Context) {
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H {
 			"operation": "forward",
-			"error": fmt.Sprintf("could not read response: %v", err),
+			"error": idx.FormatError(c, "could not read response: %v", err),
 		})
 		return
 	}
@@ -64,7 +76,7 @@ func (idx *Indexer) Forward(c *gin.Context) {
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H {
 			"operation": "forward",
-			"error": fmt.Sprintf("could not unpack JSON response: '%s', error: %v", string(data), err),
+			"error": idx.FormatError(c, "could not unpack JSON response: '%s', error: %v", string(data), err),
 		})
 		return
 	}
@@ -115,7 +127,7 @@ func (idx *Indexer) Forward(c *gin.Context) {
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H {
 			"operation": "forward",
-			"error": fmt.Sprintf("could not pack JSON index request, error: %v", err),
+			"error": idx.FormatError(c, "could not pack JSON index request: '%v', error: %v", ireq, err),
 		})
 		return
 	}
@@ -127,7 +139,7 @@ func (idx *Indexer) Forward(c *gin.Context) {
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H {
 			"operation": "forward",
-			"error": fmt.Sprintf("could not create index request to url: %s, error: %v", idx.IndexUrl, err),
+			"error": idx.FormatError(c, "could not create index request: %v", idx.IndexUrl, err),
 		})
 		return
 	}
@@ -140,7 +152,7 @@ func (idx *Indexer) Forward(c *gin.Context) {
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H {
 			"operation": "forward",
-			"error": fmt.Sprintf("could not send index request: '%s', error: %v", string(index_data), err),
+			"error": idx.FormatError(c, "could not send index request: '%s', error: %v", string(index_data), err),
 		})
 		return
 	}
@@ -149,7 +161,7 @@ func (idx *Indexer) Forward(c *gin.Context) {
 	if index_resp.StatusCode != http.StatusOK {
 		c.JSON(index_resp.StatusCode, gin.H {
 			"operation": "forward",
-			"error": fmt.Sprintf("could not send index request: '%s', status: %d", string(index_data), index_resp.StatusCode),
+			"error": idx.FormatError(c, "could not send index request: '%s', status: %d", string(index_data), index_resp.StatusCode),
 		})
 		return
 	}

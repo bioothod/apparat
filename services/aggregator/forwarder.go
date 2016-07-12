@@ -2,6 +2,7 @@ package aggregator
 
 import (
 	"fmt"
+	"github.com/bioothod/apparat/services/common"
 	"github.com/gin-gonic/gin"
 	"io"
 	"net/http"
@@ -47,9 +48,15 @@ func (f *Forwarder) Flush(c *gin.Context, resp *http.Response) {
 func (f *Forwarder) Forward(c *gin.Context) {
 	resp, err := f.Send(c)
 	if err != nil {
+		estr := fmt.Sprintf("could not forward request: destination: method: %s, addres: %s, path: %s, error: %v",
+			c.Request.Method,
+			f.Addr,
+			c.Request.URL.Path,
+			err)
+		common.NewErrorString(c, "forward", estr)
 		c.JSON(http.StatusInternalServerError, gin.H {
 			"operation": "forward",
-			"error": err.Error(),
+			"error": estr,
 		})
 		return
 	}

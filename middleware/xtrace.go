@@ -3,10 +3,15 @@ package middleware
 import (
 	"github.com/gin-gonic/gin"
 	"math/rand"
+	"time"
 )
 
 const letterBytes = "0123456789abcdef"
 const XRequestHeader = "X-Request"
+
+func init() {
+    rand.Seed(time.Now().UnixNano())
+}
 
 func XTrace() gin.HandlerFunc {
 	return func(c *gin.Context) {

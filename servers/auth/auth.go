@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"github.com/bioothod/apparat/middleware"
 	"github.com/bioothod/apparat/services/auth"
+	"github.com/bioothod/apparat/services/common"
 	"github.com/gin-gonic/gin"
 	"log"
 	"net/http"
@@ -40,27 +41,33 @@ func FromRequest(c *gin.Context) (*auth.Mailbox, error) {
 func user_signup(c *gin.Context) {
 	mbox, err := FromRequest(c)
 	if err != nil {
+		estr := fmt.Sprintf("could not parse mailbox: %v", err)
+		common.NewErrorString(c, "signup", estr)
 		c.JSON(http.StatusBadRequest, gin.H {
 			"operation": "signup",
-			"error": fmt.Sprintf("could not parse mailbox: %v", err),
+			"error": estr,
 		})
 		return
 	}
 
 	err = authCtl.NewUser(mbox)
 	if err != nil {
+		estr := fmt.Sprintf("could not create new user: %v", err)
+		common.NewErrorString(c, "signup", estr)
 		c.JSON(http.StatusBadRequest, gin.H {
 			"operation": "signup",
-			"error": fmt.Sprintf("could not create new user: %v", err),
+			"error": estr,
 		})
 		return
 	}
 
 	err = auth.SetAuthCookie(c.Request, c.Writer, auth.NewAuthCookie(mbox.Username))
 	if err != nil {
+		estr := fmt.Sprintf("could not set cookie: %v", err)
+		common.NewErrorString(c, "signup", estr)
 		c.JSON(http.StatusForbidden, gin.H {
 			"operation": "signup",
-			"error": fmt.Sprintf("could not set cookie: %v", err),
+			"error": estr,
 		})
 		return
 	}
@@ -75,27 +82,33 @@ func user_signup(c *gin.Context) {
 func user_login(c *gin.Context) {
 	mbox, err := FromRequest(c)
 	if err != nil {
+		estr := fmt.Sprintf("could not parse mailbox: %v", err)
+		common.NewErrorString(c, "login", estr)
 		c.JSON(http.StatusBadRequest, gin.H {
 			"operation": "login",
-			"error": fmt.Sprintf("could not parse mailbox: %v", err),
+			"error": estr,
 		})
 		return
 	}
 
 	err = authCtl.GetUser(mbox)
 	if err != nil {
+		estr := fmt.Sprintf("could not check user: %s, error: %v", mbox.Username, err)
+		common.NewErrorString(c, "login", estr)
 		c.JSON(http.StatusBadRequest, gin.H {
 			"operation": "login",
-			"error": fmt.Sprintf("could not check user: %s, error: %v", mbox.Username, err),
+			"error": estr,
 		})
 		return
 	}
 
 	err = auth.SetAuthCookie(c.Request, c.Writer, auth.NewAuthCookie(mbox.Username))
 	if err != nil {
+		estr := fmt.Sprintf("could not set cookie: %v", err)
+		common.NewErrorString(c, "login", estr)
 		c.JSON(http.StatusForbidden, gin.H {
 			"operation": "login",
-			"error": fmt.Sprintf("could not set cookie: %v", err),
+			"error": estr,
 		})
 		return
 	}
@@ -110,18 +123,22 @@ func user_login(c *gin.Context) {
 func user_update(c *gin.Context) {
 	mbox, err := FromRequest(c)
 	if err != nil {
+		estr := fmt.Sprintf("could not parse mailbox: %v", err)
+		common.NewErrorString(c, "update", estr)
 		c.JSON(http.StatusBadRequest, gin.H {
 			"operation": "update",
-			"error": fmt.Sprintf("could not parse mailbox: %v", err),
+			"error": estr,
 		})
 		return
 	}
 
 	err = authCtl.UpdateUser(mbox)
 	if err != nil {
+		estr := fmt.Sprintf("could not update user: %s, error: %v", mbox.Username, err)
+		common.NewErrorString(c, "update", estr)
 		c.JSON(http.StatusBadRequest, gin.H {
 			"operation": "update",
-			"error": fmt.Sprintf("could not update user: %s, error: %v", mbox.Username, err),
+			"error": estr,
 		})
 		return
 	}
@@ -136,9 +153,10 @@ func user_update(c *gin.Context) {
 func check_cookie(c *gin.Context) {
 	ac, err := auth.CheckAuthCookie(c.Request)
 	if err != nil {
+		common.NewError(c, "check", err)
 		c.JSON(http.StatusForbidden, gin.H {
 			"operation": "check",
-			"error": fmt.Sprintf("cookie check has failed: %v", err),
+			"error": err.Error(),
 		})
 		return
 	}

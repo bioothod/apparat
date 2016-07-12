@@ -23,6 +23,7 @@ func get_handler(c *gin.Context) {
 	// data will be streamed to client
 	status, err := ioCtl.Get(c.Request, c.Writer, bucket, key, common.UsernameModifier(username))
 	if err != nil {
+		common.NewError(c, "get", err)
 		c.JSON(status, gin.H {
 			"operation": "get",
 			"error": err.Error(),
@@ -38,6 +39,7 @@ func get_key_handler(c *gin.Context) {
 	// data will be streamed to client
 	status, err := ioCtl.GetKey(c.Request, c.Writer, bucket, key)
 	if err != nil {
+		common.NewError(c, "get_key", err)
 		c.JSON(status, gin.H {
 			"operation": "get_key",
 			"error": err.Error(),
@@ -54,6 +56,7 @@ func meta_json_handler(c *gin.Context) {
 	// data will be streamed to client
 	status, err := ioCtl.MetaJson(c.Request, c.Writer, bucket, key, common.UsernameModifier(username))
 	if err != nil {
+		common.NewError(c, "meta_json", err)
 		c.JSON(status, gin.H {
 			"operation": "meta_json",
 			"error": err.Error(),
@@ -68,6 +71,7 @@ func upload_handler(c *gin.Context) {
 
 	reply, err := ioCtl.Upload(c.Request, key, common.UsernameModifier(username))
 	if err != nil {
+		common.NewError(c, "upload", err)
 		c.JSON(http.StatusServiceUnavailable, gin.H {
 			"operation": "upload",
 			"error": err.Error(),
