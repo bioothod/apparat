@@ -4,6 +4,7 @@ import (
 	"flag"
 	"fmt"
 	"github.com/bioothod/apparat/middleware"
+	"github.com/bioothod/apparat/services/common"
 	"github.com/bioothod/apparat/services/aggregator"
 	"github.com/gin-gonic/contrib/static"
 	"github.com/gin-gonic/gin"
@@ -17,6 +18,8 @@ func static_index_handler(root string) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		file, err := os.Open(root + "/index.html")
 		if err != nil {
+			common.NewError(c, "static", err)
+
 			c.Status(http.StatusBadRequest)
 			return
 		}
@@ -55,7 +58,8 @@ func main() {
 
 
 	r := gin.New()
-	r.Use(gin.Logger())
+	r.Use(middleware.XTrace())
+	r.Use(middleware.Logger())
 	r.Use(gin.Recovery())
 	r.Use(middleware.CORS())
 

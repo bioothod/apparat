@@ -138,7 +138,8 @@ func main() {
 	defer idxCtl.Close()
 
 	r := gin.New()
-	r.Use(gin.Logger())
+	r.Use(middleware.XTrace())
+	r.Use(middleware.Logger())
 	r.Use(gin.Recovery())
 	r.Use(middleware.ClearGorillaContext())
 	r.Use(middleware.CORS())

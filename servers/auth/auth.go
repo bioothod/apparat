@@ -189,7 +189,8 @@ func main() {
 	auth.InitCookieStore(cookie_keys, *cookie_path)
 
 	r := gin.New()
-	r.Use(gin.Logger())
+	r.Use(middleware.XTrace())
+	r.Use(middleware.Logger())
 	r.Use(gin.Recovery())
 	r.Use(middleware.ClearGorillaContext())
 	r.Use(middleware.CORS())
