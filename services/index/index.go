@@ -173,7 +173,8 @@ func (idx *Indexer) IndexFiles(tag string, files []common.Reply) error {
 		if idx == len(files) - 1 {
 			fin = ';'
 		}
-		values += fmt.Sprintf("('%s', '%s', '%s', '%d')%c", f.Bucket, f.Name, f.Timestamp, f.Size, fin)
+		values += fmt.Sprintf("('%s', '%s', '%s', '%d')%c", f.Bucket, f.Name,
+				f.Timestamp.UTC().Format("2006-01-02 15:04:05.999999"), f.Size, fin)
 	}
 	glog.Infof("tag: %s, values: %s", iname, values)
 	_, err = idx.ctl.db.Exec("REPLACE INTO `" + iname + "` (`bucket`, `name`, `timestamp`, `size`) VALUES " + values)
