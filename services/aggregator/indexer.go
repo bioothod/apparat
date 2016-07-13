@@ -21,12 +21,14 @@ type Indexer struct {
 }
 
 func (idx *Indexer) FormatError(c *gin.Context, format string, args ...interface{}) string {
-	estr := fmt.Sprintf("could not forward request: destination: method: %s, addres: %s, path: %s, index_url: %s, error: " + format,
+	a := append([]interface{} {
 		c.Request.Method,
 		idx.Forwarder.Addr,
 		c.Request.URL.Path,
-		idx.IndexUrl,
+		idx.IndexUrl},
 		args...)
+	estr := fmt.Sprintf("could not forward request: destination: method: %s, addres: %s, path: %s, index_url: %s, error: " + format, a)
+
 	common.NewErrorString(c, "forward", estr)
 	return estr
 }
@@ -138,7 +140,7 @@ func (idx *Indexer) Forward(c *gin.Context) {
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H {
 			"operation": "forward",
-			"error": idx.FormatError(c, "could not create index request: %v", idx.IndexUrl, err),
+			"error": idx.FormatError(c, "could not create index request: %v", err),
 		})
 		return
 	}
