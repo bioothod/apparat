@@ -26,7 +26,7 @@ func (idx *Indexer) FormatError(c *gin.Context, format string, args ...interface
 		idx.Forwarder.Addr,
 		c.Request.URL.Path,
 		idx.IndexUrl,
-		args)
+		args...)
 	common.NewErrorString(c, "forward", estr)
 	return estr
 }
