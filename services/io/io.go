@@ -208,6 +208,10 @@ func (u *uploader) Do() (*common.Reply, error) {
 		reply, err = u.UploadData()
 	}
 
+	if err != nil {
+		return nil, err
+	}
+
 	reply.ContentType = u.ctype
 	reply.Name = u.key_orig
 
