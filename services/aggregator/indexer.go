@@ -27,7 +27,7 @@ func (idx *Indexer) FormatError(c *gin.Context, format string, args ...interface
 		c.Request.URL.Path,
 		idx.IndexUrl},
 		args...)
-	estr := fmt.Sprintf("could not forward request: destination: method: %s, addres: %s, path: %s, index_url: %s, error: " + format, a)
+	estr := fmt.Sprintf("could not forward request: destination: method: %s, addres: %s, path: %s, index_url: %s, error: " + format, a...)
 
 	common.NewErrorString(c, "forward", estr)
 	return estr
