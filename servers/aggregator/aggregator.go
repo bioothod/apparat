@@ -72,6 +72,7 @@ func main() {
 		// instead we have this static middleware which checks everything against static root and handles
 		// files via http.FileServer.ServerHTTP() which ends up calling http.ServeFile() with its weird redirect
 		r.GET("/index.html", static_index_handler(*static_dir))
+		r.GET("/", static_index_handler(*static_dir))
 		r.Use(static.Serve("/", static.LocalFile(*static_dir, false)))
 	}
 
